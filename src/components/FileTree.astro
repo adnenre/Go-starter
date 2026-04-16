@@ -1,0 +1,188 @@
+---
+// src/components/FileTree.astro
+import { parse } from 'node-html-parser';
+
+interface TreeNode {
+  label: string;
+  href: string;
+  children: TreeNode[];
+}
+
+export interface Props {
+  base?: string;           // optional base path (e.g., 'docs')
+  tr?: any;                // the nested fr.json object (or any translation object)
+}
+
+const { base = '', tr = null } = Astro.props;
+
+// Detect current language from URL (first segment: /en/... or /fr/...)
+const pathname = Astro.url.pathname;
+const match = pathname.match(/^\/([^/]+)/);
+let lang = match ? match[1] : 'en';
+const supportedLangs = ['en', 'fr'];
+if (!supportedLangs.includes(lang)) lang = 'en';
+
+// Build the root path for links (e.g., /en/docs or /fr/docs)
+const rootPath = `/${lang}${base ? '/' + base : ''}`;
+
+// Helper: extract numeric prefix from a string (e.g., "1.1 What is .Net" -> "1.1")
+function extractNumber(label: string): string | null {
+  const match = label.match(/^(\d+(?:\.\d+)*)/);
+  return match ? match[1] : null;
+}
+
+// Helper: extract chapter number from a chapter title (e.g., "Chapter 1 : ..." -> "1")
+function extractChapterNumber(label: string): string | null {
+  const match = label.match(/^Chapter\s+(\d+)/i);
+  return match ? match[1] : null;
+}
+
+// Get French translation for an English label using the nested tr object
+function getFrenchTranslation(englishLabel: string): string | null {
+  if (lang !== 'fr' || !tr) return null;
+
+  const num = extractNumber(englishLabel);
+  if (num) {
+    // It's a numbered item (e.g., "1.1", "2.3.1")
+    const chapterNum = num.split('.')[0];
+    const chapterKey = `chapter${chapterNum}`;
+    const items = tr.sidebar?.[chapterKey]?.items;
+    if (items && items[num]) {
+      return items[num];
+    }
+  } else {
+    // It might be a chapter title
+    const chapterNum = extractChapterNumber(englishLabel);
+    if (chapterNum) {
+      const chapterKey = `chapter${chapterNum}`;
+      const chapterLabel = tr.sidebar?.[chapterKey]?.label;
+      if (chapterLabel) return chapterLabel;
+    }
+  }
+  return null; // fallback to English
+}
+
+// Slugify a string to create a URL‑safe path (same as Starlight)
+const slugify = (text: string): string => {
+  const withHyphens = text.replace(/\./g, '-');
+  return withHyphens
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/--+/g, '-')
+    .replace(/^-|-$/g, '');
+};
+
+// Recursively build a tree from the HTML list inside the slot
+function buildTree(ul: any, parentPath: string): TreeNode[] {
+  const nodes: TreeNode[] = [];
+  const items = ul.querySelectorAll(':scope > li');
+  for (const li of items) {
+    // Extract plain text from the <li> (excluding nested <ul>)
+    const textNodes = li.childNodes.filter((n: any) => n.nodeType === 3);
+    const label = textNodes.map((n: any) => n.textContent).join('').trim();
+    if (!label) continue;
+
+    const slug = slugify(label);
+    const href = parentPath ? `${parentPath}/${slug}` : `/${slug}`;
+    const node: TreeNode = { label, href, children: [] };
+    const nestedUl = li.querySelector('ul');
+    if (nestedUl) {
+      node.children = buildTree(nestedUl, href);
+    }
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+// Render a single tree node (directory or file)
+function renderNode(node: TreeNode, depth = 0): string {
+  const paddingLeft = depth * 24;
+  const translation = getFrenchTranslation(node.label);
+  const displayLabel = translation !== null ? translation : node.label;
+
+  // Directory (top‑level, collapsible)
+  if (depth === 0 && node.children.length > 0) {
+    const childrenHtml = node.children.map((child) => renderNode(child, depth + 1)).join('');
+    return `
+      <li class="directory">
+        <details>
+          <summary style="padding-left:${paddingLeft}px">${displayLabel}</summary>
+          <ul class="tree-children">${childrenHtml}</ul>
+        </details>
+      </li>
+    `;
+  }
+
+  // File (link)
+  return `
+    <li class="file">
+      <a href="${node.href}" class="file-link" style="padding-left:${paddingLeft}px">${displayLabel}</a>
+    </li>
+  `;
+}
+
+// Parse the slot content (which is an HTML list)
+const html = await Astro.slots.render('default');
+const root = parse(html);
+const firstUl = root.querySelector('ul');
+const tree: TreeNode[] = firstUl ? buildTree(firstUl, rootPath) : [];
+const treeHtml = tree.map((node) => renderNode(node)).join('');
+---
+
+{
+  tree.length > 0 ? (
+    <div class="file-tree not-content">
+      <style>
+        .file-tree {
+          border: 1px solid var(--sl-color-gray-5);
+          border-radius: 0.5rem;
+          padding: 1rem;
+          background-color: var(--sl-color-gray-7);
+          font-family: var(--__sl-font-mono);
+          font-size: 0.9rem;
+        }
+        .file-tree ul {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        .file-tree li {
+          margin: 0.125rem 0;
+        }
+        .directory > details {
+          border: 0;
+          padding: 0;
+          background: transparent;
+        }
+        .directory > details > summary {
+          cursor: pointer;
+          padding: 0.25rem 0.5rem;
+          border-radius: 0.25rem;
+        }
+        .directory > details > summary:hover {
+          background-color: var(--sl-color-gray-6);
+        }
+        .file-link {
+          display: block;
+          padding: 0.25rem 0.5rem;
+          border-radius: 0.25rem;
+          text-decoration: none;
+          color: var(--sl-color-text);
+        }
+        .file-link:hover {
+          background-color: var(--sl-color-gray-6);
+          color: var(--sl-color-text-accent);
+        }
+        .tree-children {
+          margin-left: 1rem;
+          border-left: 1px solid var(--sl-color-gray-5);
+          padding-left: 0.5rem;
+        }
+      </style>
+      <ul set:html={treeHtml} />
+    </div>
+  ) : (
+    <p>(empty file tree)</p>
+  )
+}

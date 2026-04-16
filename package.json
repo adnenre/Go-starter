@@ -1,0 +1,23 @@
+{
+  "name": "go-fondamentals",
+  "type": "module",
+  "version": "1.1.7",
+  "description": "A Comprehensive Guide to Master Go Fundamentals.",
+  "author": "adnen rebai <adnen.rebai@gmail.com> (https://adnenre.dev)",
+  "homepage": "https://go-fondamentals.vercel.app/",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.37.6",
+    "@astrojs/vercel": "^10.0.4",
+    "astro": "^5.6.1",
+    "node-html-parser": "^7.0.2",
+    "sharp": "^0.34.2",
+    "starlight-theme-galaxy": "^0.7.0"
+  }
+}
