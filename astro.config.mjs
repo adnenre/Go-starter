@@ -958,6 +958,13 @@ export default defineConfig({
               },
               slug: "chapter-10-cli-mastery-build-a-publishable-task-manager/10-20-deliverables",
             },
+            {
+              label: "10.21 Summry",
+              translations: {
+                fr: "10.21 Résumé",
+              },
+              slug: "chapter-10-cli-mastery-build-a-publishable-task-manager/10-21-summry",
+            },
           ],
         },
       ],
